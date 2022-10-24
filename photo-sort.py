@@ -1,10 +1,11 @@
-from codecs import ignore_errors
+#!/usr/bin/env python
+
 import filetype
-import glob
 import numpy as np
 import os
 import re
 import scipy.cluster.hierarchy as hcluster
+import shutil
 import time
 from datetime import datetime
 from ffprobe import FFProbe
@@ -111,9 +112,6 @@ def get_video_date(path):
     try:
         video_data = FFProbe(path)
     except:
-        print('-----------------------------------------------------------')
-        print(path)
-        print('-----------------------------------------------------------')
         return get_date_from_path(path)
     if 'creation_time' in video_data.metadata:
         creation_datetime = datetime.strptime(video_data.metadata['creation_time'], '%Y-%m-%dT%H:%M:%S.%fZ')
@@ -125,7 +123,9 @@ def process_media_list(path):
     for path_obj in Path(path).rglob('*'):
         path = str(path_obj.absolute())
         mtime = os.path.getmtime(path)
-        if path_obj.is_file() and not ignored_re.match(path):
+        if path_obj.is_dir():
+            continue
+        if not ignored_re.match(path):
             creation_datetime = None
             file_kind = filetype.guess(path)
             if file_kind is not None:
@@ -203,7 +203,19 @@ def cluster_scipy(dates):
     clusters = hcluster.fclusterdata(X, thresh, criterion='distance')
     print(clusters)
 
+source = '/mnt/ellis/Photos - to sort'
+destination = '/mnt/ellis/Photos - sorted - take 2'
 
 for file_data in process_media_list('/mnt/ellis/Photos - to sort'):
-    if 'creation_ts' in file_data and file_data['creation_ts'] is not None:
-        creation_datetime = time.strftime('%Y-%m-%d', time.localtime(file_data['creation_ts']))
+    filename = os.path.basename(file_data['path'])
+    if file_data['type'] == 'image' or file_data['type'] == 'video':
+        if 'creation_ts' in file_data and file_data['creation_ts'] is not None:
+            datetime_path = time.strftime('%Y-%m-%d', time.localtime(file_data['creation_ts']))
+            dest_path = '{}/media_dated/{}/{}'.format(destination, datetime_path, filename)
+        else:
+            datetime_path = time.strftime('%Y-%m-%d', time.localtime(file_data['mtime']))
+            dest_path = '{}/media_mtime/{}/{}'.format(destination, datetime_path, filename)
+    else:
+        dest_path = '{}/{}/{}'.format(destination, file_data['type'], filename)
+    print('{} --> {}'.format(file_data['path'], dest_path))
+    # shutil.move(file_data['path'], dest_path)
