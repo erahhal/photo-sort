@@ -1,7 +1,12 @@
 #!/usr/bin/env python
 
+# To extract thumbnail from bad file:
+#
+#   exiftool -b -ThumbnailImage image.jpg > folder/thumbnail.jpg
+
 import filetype
 import numpy as np
+import PIL
 import os
 import re
 import scipy.cluster.hierarchy as hcluster
@@ -15,8 +20,10 @@ from pathlib import Path
 from PIL import Image, ExifTags
 from sklearn.cluster import MeanShift, estimate_bandwidth
 
+
 filtered_patterns = [
     '.*\\.thumbnails.*',
+    '.*\\.cfg',
     '.*\\.csv',
     '.*\\.dmg',
     # '.*\\.dtrash.*',
@@ -79,15 +86,19 @@ def get_date_from_path(path, match_folder_date=False):
     return creation_ts
 
 def get_image_date(path):
-    im = Image.open(path)
-    exif = im.getexif()
-    # exif.get(36867)
-    exif_tags = { ExifTags.TAGS[k]: v for k, v in exif.items() if k in ExifTags.TAGS and type(v) is not bytes }
     creation_date = None
-    if 'DateTimeOriginal' in exif_tags:
-        creation_date = exif_tags['DateTimeOriginal']
-    elif 'DateTime' in exif_tags:
-        creation_date = exif_tags['DateTime']
+    try:
+        im = Image.open(path)
+        exif = im.getexif()
+        # exif.get(36867)
+        exif_tags = { ExifTags.TAGS[k]: v for k, v in exif.items() if k in ExifTags.TAGS and type(v) is not bytes }
+        if 'DateTimeOriginal' in exif_tags:
+            creation_date = exif_tags['DateTimeOriginal']
+        elif 'DateTime' in exif_tags:
+            creation_date = exif_tags['DateTime']
+    except PIL.UnidentifiedImageError:
+        # Can't extract data using PIL
+        pass
     if creation_date is None:
         with open(path, 'rb') as img_file:
             try:
